@@ -14,7 +14,7 @@ void stemma_encoder_setup(uint8_t addr) {
   seesaw_pin_mode_bulk(addr, (uint32_t)1 << SS_SWITCH, INPUT_PULLUP);
   seesaw_set_interrupts(addr, (uint32_t)1 << SS_SWITCH, 1);
 
-  seesaw_enable_encoder_interrupt(addr);
+  //seesaw_enable_encoder_interrupt(addr);
 }
 
 int32_t stemma_encoder_get_position(uint8_t addr) {
@@ -25,8 +25,10 @@ int32_t stemma_encoder_get_diff(uint8_t addr) {
   return seesaw_get_encoder_diff(addr);
 }
 
-bool stemma_encoder_read_button(uint8_t addr) {
+uint32_t stemma_encoder_read_button(uint8_t addr) {
   uint32_t buttons = seesaw_digital_read_bulk(addr, SS_BUTTONMASK);
+  buttons ^= SS_BUTTONMASK;
+  buttons &= SS_BUTTONMASK;
 
-  return buttons != 0;
+  return buttons;
 }

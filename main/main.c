@@ -70,7 +70,7 @@ QueueHandle_t hid_queue;
 
 static SemaphoreHandle_t encoder_mutex;
 static int32_t encoder_diff = 0;
-static bool encoder_pressed = false;
+static uint32_t encoder_pressed = 0;
 
 static bool example_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
@@ -199,9 +199,9 @@ void neokey_task(void *parameter)
 
         seesaw_pixel_write(I2C_NEOKEY_ADDR, data_wr, 12);
 
-        int32_t diff = stemma_encoder_get_diff(I2C_ENCODER_ADDR);
+        uint32_t pressed = stemma_encoder_read_button(I2C_ENCODER_ADDR);
 
-        //bool pressed = stemma_encoder_read_button(I2C_ENCODER_ADDR);
+        int32_t diff = stemma_encoder_get_diff(I2C_ENCODER_ADDR);
 
         xSemaphoreTake(encoder_mutex, portMAX_DELAY);
         encoder_diff += diff;
@@ -223,7 +223,7 @@ bool lvgl_encoder_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
 
     encoder_diff = 0;
 
-    if (encoder_pressed)
+    if (encoder_pressed != 0)
     {
         data->state = LV_INDEV_STATE_PR;
     }
