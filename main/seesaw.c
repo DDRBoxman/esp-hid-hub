@@ -247,3 +247,30 @@ int32_t seesaw_get_encoder_position(uint8_t addr)
 
     return ret;
 }
+
+int32_t seesaw_get_encoder_diff(uint8_t addr)
+{
+    uint8_t data_wr[] = {SEESAW_ENCODER_BASE, SEESAW_ENCODER_DELTA};
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (addr << 1) | WRITE_BIT, ACK_CHECK_EN);
+    i2c_master_write(cmd, data_wr, 2, ACK_CHECK_EN);
+    i2c_master_stop(cmd);
+    esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+
+    uint8_t buf[4];
+    cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (addr << 1) | READ_BIT, ACK_CHECK_EN);
+    i2c_master_read(cmd, buf, 3, ACK_VAL);
+    i2c_master_read_byte(cmd, buf + 3, NACK_VAL);
+    i2c_master_stop(cmd);
+    err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
+    i2c_cmd_link_delete(cmd);
+
+    int32_t ret = ((uint32_t)buf[0] << 24) | ((uint32_t)buf[1] << 16) |
+                  ((uint32_t)buf[2] << 8) | (uint32_t)buf[3];
+
+    return ret;
+}

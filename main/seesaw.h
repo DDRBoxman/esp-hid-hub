@@ -107,3 +107,5 @@ uint8_t seesaw_get_address(uint8_t addr);
 bool seesaw_enable_encoder_interrupt(uint8_t addr);
 
 int32_t seesaw_get_encoder_position(uint8_t addr);
+
+int32_t seesaw_get_encoder_diff(uint8_t addr);

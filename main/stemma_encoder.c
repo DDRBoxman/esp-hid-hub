@@ -4,6 +4,9 @@
 #define SS_SWITCH        24
 #define SS_NEOPIX        6
 
+#define SS_BUTTONMASK (1ul << 24)
+
+
 void stemma_encoder_setup(uint8_t addr) {
 
   seesaw_pixel_init(addr, SS_NEOPIX, 1);
@@ -16,4 +19,14 @@ void stemma_encoder_setup(uint8_t addr) {
 
 int32_t stemma_encoder_get_position(uint8_t addr) {
   return seesaw_get_encoder_position(addr);
+}
+
+int32_t stemma_encoder_get_diff(uint8_t addr) {
+  return seesaw_get_encoder_diff(addr);
+}
+
+bool stemma_encoder_read_button(uint8_t addr) {
+  uint32_t buttons = seesaw_digital_read_bulk(addr, SS_BUTTONMASK);
+
+  return buttons != 0;
 }

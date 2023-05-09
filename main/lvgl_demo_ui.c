@@ -28,60 +28,74 @@ static void btn_cb(lv_event_t * e)
     lv_disp_set_rotation(disp, rotation);*/
 }
 
-void example_lvgl_demo_ui(lv_disp_t *disp)
+static void back_event_handler(lv_event_t * e)
 {
+    lv_obj_t * obj = lv_event_get_target(e);
+    lv_obj_t * menu = lv_event_get_user_data(e);
+
+    if(lv_menu_back_btn_is_root(menu, obj)) {
+        lv_obj_t * mbox1 = lv_msgbox_create(NULL, "Hello", "Root back btn click.", NULL, true);
+        lv_obj_center(mbox1);
+    }
+}
+
+void example_lvgl_demo_ui(lv_disp_t *disp, lv_indev_t* indev)
+{
+    lv_group_t * group = lv_group_create();
+    //lv_group_add_obj(g, menu);
+    lv_group_set_default(group);
+    lv_indev_set_group(indev, group);
+
     lv_obj_t *scr = lv_disp_get_scr_act(disp);
-    meter = lv_meter_create(scr);
-    lv_obj_center(meter);
-    lv_obj_set_size(meter, 200, 200);
+    lv_obj_t * menu = lv_menu_create(scr);
+    lv_menu_set_mode_root_back_btn(menu, LV_MENU_ROOT_BACK_BTN_ENABLED);
+    lv_obj_add_event_cb(menu, back_event_handler, LV_EVENT_CLICKED, menu);
+    lv_obj_set_size(menu, lv_disp_get_hor_res(NULL), lv_disp_get_ver_res(NULL));
+    lv_obj_center(menu);
 
-    /*Add a scale first*/
-    lv_meter_scale_t *scale = lv_meter_add_scale(meter);
-    lv_meter_set_scale_ticks(meter, scale, 41, 2, 10, lv_palette_main(LV_PALETTE_GREY));
-    lv_meter_set_scale_major_ticks(meter, scale, 8, 4, 15, lv_color_black(), 10);
+    lv_obj_t* back_button = lv_menu_get_main_header_back_btn(menu);
 
-   // lv_meter_indicator_t *indic;
+    lv_group_add_obj(group, back_button);
+    lv_obj_clear_flag(back_button, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(back_button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 
-    /*Add a blue arc to the start*/
-    indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_BLUE), 0);
-    lv_meter_set_indicator_start_value(meter, indic, 0);
-    lv_meter_set_indicator_end_value(meter, indic, 20);
+    lv_obj_t * cont;
+    lv_obj_t * label;
 
-    /*Make the tick lines blue at the start of the scale*/
-    indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_BLUE), false, 0);
-    lv_meter_set_indicator_start_value(meter, indic, 0);
-    lv_meter_set_indicator_end_value(meter, indic, 20);
+    /*Create a sub page*/
+    lv_obj_t * sub_page = lv_menu_page_create(menu, NULL);
 
-    /*Add a red arc to the end*/
-    indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_RED), 0);
-    lv_meter_set_indicator_start_value(meter, indic, 80);
-    lv_meter_set_indicator_end_value(meter, indic, 100);
+    cont = lv_menu_cont_create(sub_page);
+    label = lv_label_create(cont);
+    lv_label_set_text(label, "Hello, I am hiding here");
 
-    /*Make the tick lines red at the end of the scale*/
-    indic = lv_meter_add_scale_lines(meter, scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
-    lv_meter_set_indicator_start_value(meter, indic, 80);
-    lv_meter_set_indicator_end_value(meter, indic, 100);
+    /*Create a main page*/
+    lv_obj_t * main_page = lv_menu_page_create(menu, NULL);
 
-    /*Add a needle line indicator*/
-    indic = lv_meter_add_needle_line(meter, scale, 4, lv_palette_main(LV_PALETTE_GREY), -10);
+    cont = lv_menu_cont_create(main_page);
+    label = lv_label_create(cont);
+    lv_label_set_text(label, "Item 1");
 
-    btn = lv_btn_create(scr);
-    lv_obj_t * lbl = lv_label_create(btn);
-    lv_label_set_text_static(lbl, LV_SYMBOL_REFRESH" ROTATE");
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_LEFT, 30, -30);
-    /*Button event*/
-    lv_obj_add_event_cb(btn, btn_cb, LV_EVENT_CLICKED, disp);
+    lv_group_add_obj(group, cont);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 
-    /*Create an animation to set the value*/
-    /*lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_exec_cb(&a, set_value);
-    lv_anim_set_var(&a, indic);
-    lv_anim_set_values(&a, 0, 100);
-    lv_anim_set_time(&a, 2000);
-    lv_anim_set_repeat_delay(&a, 100);
-    lv_anim_set_playback_time(&a, 500);
-    lv_anim_set_playback_delay(&a, 100);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&a);*/
+    cont = lv_menu_cont_create(main_page);
+    label = lv_label_create(cont);
+    lv_label_set_text(label, "Item 2");
+
+    lv_group_add_obj(group, cont);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+
+    cont = lv_menu_cont_create(main_page);
+    label = lv_label_create(cont);
+    lv_label_set_text(label, "Item 3 (Click me!)");
+    lv_menu_set_load_page_event(menu, cont, sub_page);
+
+    lv_group_add_obj(group, cont);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+
+    lv_menu_set_page(menu, main_page);
 }

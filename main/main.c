@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <inttypes.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
+
 #include "esp_timer.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
@@ -65,7 +68,9 @@ static const char *TAG = "example";
 
 QueueHandle_t hid_queue;
 
-extern void example_lvgl_demo_ui(lv_disp_t *disp);
+static SemaphoreHandle_t encoder_mutex;
+static int32_t encoder_diff = 0;
+static bool encoder_pressed = false;
 
 static bool example_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
@@ -194,9 +199,14 @@ void neokey_task(void *parameter)
 
         seesaw_pixel_write(I2C_NEOKEY_ADDR, data_wr, 12);
 
-        int32_t pos = stemma_encoder_get_position(I2C_ENCODER_ADDR);
+        int32_t diff = stemma_encoder_get_diff(I2C_ENCODER_ADDR);
 
-        set_value(pos);
+        //bool pressed = stemma_encoder_read_button(I2C_ENCODER_ADDR);
+
+        xSemaphoreTake(encoder_mutex, portMAX_DELAY);
+        encoder_diff += diff;
+        encoder_pressed = pressed;
+        xSemaphoreGive(encoder_mutex);
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -206,11 +216,33 @@ void lvgl_task(void *parms)
 {
 }
 
+bool lvgl_encoder_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
+{
+    xSemaphoreTake(encoder_mutex, portMAX_DELAY);
+    data->enc_diff = encoder_diff;
+
+    encoder_diff = 0;
+
+    if (encoder_pressed)
+    {
+        data->state = LV_INDEV_STATE_PR;
+    }
+    else
+    {
+        data->state = LV_INDEV_STATE_REL;
+    }
+
+    xSemaphoreGive(encoder_mutex);
+
+    return false; /*No buffering now so no more data read*/
+}
+
 void app_main(void)
 {
     esp_log_set_vprintf(esp_apptrace_vprintf);
 
     hid_queue = xQueueCreate(10, sizeof(uint32_t));
+    encoder_mutex = xSemaphoreCreateMutex();
 
     ESP_LOGI(TAG, "Turn on tft");
     gpio_config_t tft_gpio_config = {
@@ -320,10 +352,17 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, EXAMPLE_LVGL_TICK_PERIOD_MS * 1000));
 
-    ESP_LOGI(TAG, "Display LVGL Meter Widget");
-    example_lvgl_demo_ui(disp);
+    lv_indev_drv_t indev_drv;
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_ENCODER;
+    indev_drv.read_cb = lvgl_encoder_read;
+    /*Register the driver in LVGL and save the created input device object*/
+    lv_indev_t *indev = lv_indev_drv_register(&indev_drv);
 
-    setup_usb(GPIO_NUM_0);
+    ESP_LOGI(TAG, "Display LVGL Meter Widget");
+    example_lvgl_demo_ui(disp, indev);
+
+    //setup_usb(GPIO_NUM_0);
 
     vTaskDelay(pdMS_TO_TICKS(50));
 
