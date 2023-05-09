@@ -1,43 +1,69 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_timer.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
 #include "esp_lcd_panel_ops.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+#include "driver/i2c.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "lvgl.h"
+#include "lvgl_demo_ui.h"
+
+#include "seesaw.h"
+#include "neokey_4x1.h"
+#include "htu31d.h"
+#include "usb.h"
+#include "stemma_encoder.h"
+
+#include "esp_app_trace.h"
 
 static const char *TAG = "example";
 
-#define LCD_HOST  SPI2_HOST
+#include "class/hid/hid_device.h"
+
+#define WRITE_BIT I2C_MASTER_WRITE /*!< I2C master write */
+#define ACK_CHECK_EN 0x1           /*!< I2C master will check ack from slave*/
+
+#define LCD_HOST SPI2_HOST
 
 #define PIN_NUM_SCLK 36
 #define PIN_NUM_MOSI 35
 #define PIN_NUM_MISO 37
-#define PIN_NUM_LCD_DC 39
-#define PIN_NUM_LCD_RST 40
-#define PIN_NUM_LCD_CS 7
+#define PIN_NUM_LCD_DC 40
+#define PIN_NUM_LCD_RST 41
+#define PIN_NUM_LCD_CS 42
 #define PIN_NUM_BK_LIGHT 45
 #define LCD_BK_LIGHT_ON_LEVEL 1
 
 #define LCD_H_RES 240
 #define LCD_V_RES 135
 
-#define LCD_PIXEL_CLOCK_HZ     (7 * 1000 * 1000)
-#define LCD_CMD_BITS           8
-#define LCD_PARAM_BITS         8
+#define LCD_PIXEL_CLOCK_HZ (7 * 1000 * 1000)
+#define LCD_CMD_BITS 8
+#define LCD_PARAM_BITS 8
 
-#define EXAMPLE_LVGL_TICK_PERIOD_MS    2
+#define EXAMPLE_LVGL_TICK_PERIOD_MS 2
 
-#define TFT_I2C_POWER 21
+#define TFT_I2C_POWER 7
 
-#define BUF_W 20
-#define BUF_H 10
+#define I2C_MASTER_SCL_IO 4
+#define I2C_MASTER_SDA_IO 3
+#define I2C_MASTER_NUM 0
+#define I2C_MASTER_FREQ_HZ 80000
+#define I2C_MASTER_TX_BUF_DISABLE 0
+#define I2C_MASTER_RX_BUF_DISABLE 0
+#define I2C_MASTER_TIMEOUT_MS 1000
 
+#define I2C_ENCODER_ADDR 0x36
+#define I2C_NEOKEY_ADDR 0x31
+
+QueueHandle_t hid_queue;
 
 extern void example_lvgl_demo_ui(lv_disp_t *disp);
 
@@ -50,7 +76,7 @@ static bool example_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, 
 
 static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t) drv->user_data;
+    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
     int offsetx1 = area->x1;
     int offsetx2 = area->x2;
     int offsety1 = area->y1;
@@ -62,9 +88,10 @@ static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
 static void example_lvgl_port_update_callback(lv_disp_drv_t *drv)
 {
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t) drv->user_data;
+    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
 
-    switch (drv->rotated) {
+    switch (drv->rotated)
+    {
     case LV_DISP_ROT_NONE:
         // Rotate LCD display
         esp_lcd_panel_swap_xy(panel_handle, false);
@@ -94,24 +121,121 @@ static void example_increase_lvgl_tick(void *arg)
     lv_tick_inc(EXAMPLE_LVGL_TICK_PERIOD_MS);
 }
 
+static esp_err_t i2c_master_init(void)
+{
+    int i2c_master_port = I2C_MASTER_NUM;
+
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_MASTER_FREQ_HZ,
+    };
+
+    esp_err_t err = i2c_param_config(i2c_master_port, &conf);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
+}
+
+void hid_task(void *parameter)
+{
+    while (1)
+    {
+        uint32_t key;
+        BaseType_t sucess = xQueueReceive(hid_queue, &key, 0);
+
+        if (sucess && usb_mounted())
+        {
+            app_send_hid_demo(HID_KEY_1 + key);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+void neokey_task(void *parameter)
+{
+    uint32_t last_buttons = 0;
+
+    uint8_t data_wr[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
+
+    while (1)
+    {
+        uint32_t buttons = neokey_read(I2C_NEOKEY_ADDR);
+
+        uint8_t just_pressed = (buttons ^ last_buttons) & buttons;
+        uint8_t just_released = (buttons ^ last_buttons) & ~buttons;
+        if (just_pressed | just_released)
+        {
+
+            for (int b = 0; b < 4; b++)
+            {
+                if (just_pressed & (1 << b))
+                {
+                    xQueueSend(hid_queue, &b, 0);
+
+                    data_wr[(b * 3)] = 0x22;
+                }
+
+                if (just_released & (1 << b))
+                {
+                    data_wr[(b * 3)] = 0x11;
+                }
+            }
+        }
+
+        last_buttons = buttons;
+
+        seesaw_pixel_write(I2C_NEOKEY_ADDR, data_wr, 12);
+
+        int32_t pos = stemma_encoder_get_position(I2C_ENCODER_ADDR);
+
+        set_value(pos);
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+void lvgl_task(void *parms)
+{
+}
+
 void app_main(void)
 {
-    static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
-    static lv_disp_drv_t disp_drv;      // contains callback functions
+    esp_log_set_vprintf(esp_apptrace_vprintf);
+
+    hid_queue = xQueueCreate(10, sizeof(uint32_t));
 
     ESP_LOGI(TAG, "Turn on tft");
     gpio_config_t tft_gpio_config = {
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = 1ULL << TFT_I2C_POWER
-    };
+        .pin_bit_mask = 1ULL << TFT_I2C_POWER};
     ESP_ERROR_CHECK(gpio_config(&tft_gpio_config));
     gpio_set_level(TFT_I2C_POWER, LCD_BK_LIGHT_ON_LEVEL);
+
+    ESP_ERROR_CHECK(i2c_master_init());
+    ESP_LOGI(TAG, "I2C initialized successfully");
+
+    // Wait for i2c devices to be ready
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    neokey_setup(I2C_NEOKEY_ADDR);
+
+    stemma_encoder_setup(I2C_ENCODER_ADDR);
+
+    static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
+    static lv_disp_drv_t disp_drv;      // contains callback functions
 
     ESP_LOGI(TAG, "Turn off LCD backlight");
     gpio_config_t bk_gpio_config = {
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = 1ULL << PIN_NUM_BK_LIGHT
-    };
+        .pin_bit_mask = 1ULL << PIN_NUM_BK_LIGHT};
     ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
 
     ESP_LOGI(TAG, "Initialize SPI bus");
@@ -155,17 +279,15 @@ void app_main(void)
 
     esp_lcd_panel_set_gap(panel_handle, 40, 53);
 
-    
-    esp_lcd_panel_invert_color(panel_handle,true);
+    esp_lcd_panel_invert_color(panel_handle, true);
 
-        // Turn on the screen
+    // Turn on the screen
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
-    
 
     ESP_LOGI(TAG, "Turn on LCD backlight");
     gpio_set_level(PIN_NUM_BK_LIGHT, LCD_BK_LIGHT_ON_LEVEL);
 
-   ESP_LOGI(TAG, "Initialize LVGL library");
+    ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
     // alloc draw buffers used by LVGL
     // it's recommended to choose the size of the draw buffer(s) to be at least 1/10 screen sized
@@ -193,8 +315,7 @@ void app_main(void)
     // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
     const esp_timer_create_args_t lvgl_tick_timer_args = {
         .callback = &example_increase_lvgl_tick,
-        .name = "lvgl_tick"
-    };
+        .name = "lvgl_tick"};
     esp_timer_handle_t lvgl_tick_timer = NULL;
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, EXAMPLE_LVGL_TICK_PERIOD_MS * 1000));
@@ -202,10 +323,29 @@ void app_main(void)
     ESP_LOGI(TAG, "Display LVGL Meter Widget");
     example_lvgl_demo_ui(disp);
 
-    while (1) {
-        // raise the task priority of LVGL and/or reduce the handler period can improve the performance
+    setup_usb(GPIO_NUM_0);
+
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    uint8_t pixels[] = {0x11, 0x00, 0x00, 0x11, 0x00, 0x00, 0x11, 0x00, 0x00, 0x11, 0x00, 0x00};
+    seesaw_pixel_write(I2C_NEOKEY_ADDR, pixels, 12);
+
+    uint8_t encoder_pixel[] = {0x11, 0x11, 0x11};
+    seesaw_pixel_write(I2C_ENCODER_ADDR, encoder_pixel, 3);
+
+    vTaskDelay(pdMS_TO_TICKS(5));
+
+    xTaskCreatePinnedToCore(neokey_task, "neokey_task", 2048, NULL, 4, NULL, 1);
+
+    xTaskCreatePinnedToCore(hid_task, "hid_task", 2048, NULL, 4, NULL, 1);
+
+    uint32_t last_buttons = 0;
+
+    while (1)
+    {
+        //  raise the task priority of LVGL and/or reduce the handler period can improve the performance
         vTaskDelay(pdMS_TO_TICKS(10));
-        // The task running lv_timer_handler should have lower priority than that running `lv_tick_inc`
+        //  The task running lv_timer_handler should have lower priority than that running `lv_tick_inc`
         lv_timer_handler();
     }
 }

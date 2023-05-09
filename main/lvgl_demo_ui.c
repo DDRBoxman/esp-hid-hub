@@ -10,9 +10,10 @@
 
 static lv_obj_t *meter;
 static lv_obj_t * btn;
+static lv_meter_indicator_t *indic;
 //static lv_disp_rot_t rotation = LV_DISP_ROT_NONE;
 
-static void set_value(void *indic, int32_t v)
+void set_value(int32_t v)
 {
     lv_meter_set_indicator_end_value(meter, indic, v);
 }
@@ -39,7 +40,7 @@ void example_lvgl_demo_ui(lv_disp_t *disp)
     lv_meter_set_scale_ticks(meter, scale, 41, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     lv_meter_set_scale_major_ticks(meter, scale, 8, 4, 15, lv_color_black(), 10);
 
-    lv_meter_indicator_t *indic;
+   // lv_meter_indicator_t *indic;
 
     /*Add a blue arc to the start*/
     indic = lv_meter_add_arc(meter, scale, 3, lv_palette_main(LV_PALETTE_BLUE), 0);
@@ -72,7 +73,7 @@ void example_lvgl_demo_ui(lv_disp_t *disp)
     lv_obj_add_event_cb(btn, btn_cb, LV_EVENT_CLICKED, disp);
 
     /*Create an animation to set the value*/
-    lv_anim_t a;
+    /*lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_exec_cb(&a, set_value);
     lv_anim_set_var(&a, indic);
@@ -82,5 +83,5 @@ void example_lvgl_demo_ui(lv_disp_t *disp)
     lv_anim_set_playback_time(&a, 500);
     lv_anim_set_playback_delay(&a, 100);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&a);
+    lv_anim_start(&a);*/
 }

@@ -1,2 +1,10 @@
-idf_component_register(SRCS "main.c" "lvgl_demo_ui.c"
+idf_component_register(SRCS "stemma_encoder.c" "usb.c"
+                    "neokey_4x1.c"
+                    "main.c"
+                    "lvgl_demo_ui.c"
+                    "seesaw.c"
+                    "htu31d.c"
+                    "neokey_4x1.c"
+                    "usb.c"
+                    "stemma_encoder.c"
                     INCLUDE_DIRS ".")
