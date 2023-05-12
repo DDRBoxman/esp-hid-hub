@@ -54,6 +54,8 @@ bool seesaw_pixel_write_offset(uint8_t addr, uint8_t pixels[], uint8_t len, uint
     esp_err_t err = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
 
+    free(data_wr);
+
     if (err != ESP_OK) {
         return false;
     }
