@@ -164,6 +164,12 @@ void hid_task(void *parameter)
     }
 }
 
+void reset_i2c()
+{
+    i2c_reset_tx_fifo(I2C_MASTER_NUM);
+    i2c_reset_rx_fifo(I2C_MASTER_NUM);
+}
+
 void neokey_task(void *parameter)
 {
     uint32_t last_buttons = 0;
@@ -172,7 +178,14 @@ void neokey_task(void *parameter)
 
     while (1)
     {
-        uint32_t buttons = neokey_read(I2C_NEOKEY_ADDR);
+        uint32_t buttons = 0;
+        bool success = neokey_read(I2C_NEOKEY_ADDR, &buttons);
+
+        if (!success)
+        {
+            reset_i2c();
+            continue;
+        }
 
         uint8_t just_pressed = (buttons ^ last_buttons) & buttons;
         uint8_t just_released = (buttons ^ last_buttons) & ~buttons;
@@ -199,9 +212,21 @@ void neokey_task(void *parameter)
 
         seesaw_pixel_write(I2C_NEOKEY_ADDR, data_wr, 12);
 
-        uint32_t pressed = stemma_encoder_read_button(I2C_ENCODER_ADDR);
+        uint32_t pressed = 0;
+        success = stemma_encoder_read_button(I2C_ENCODER_ADDR, &pressed);
+        if (!success)
+        {
+            reset_i2c();
+            continue;
+        }
 
-        int32_t diff = stemma_encoder_get_diff(I2C_ENCODER_ADDR);
+        int32_t diff = 0;
+        success = stemma_encoder_get_diff(I2C_ENCODER_ADDR, &diff);
+        if (!success)
+        {
+            reset_i2c();
+            continue;
+        }
 
         xSemaphoreTake(encoder_mutex, portMAX_DELAY);
         encoder_diff += diff;
@@ -362,7 +387,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Display LVGL Meter Widget");
     example_lvgl_demo_ui(disp, indev);
 
-    //setup_usb(GPIO_NUM_0);
+    // setup_usb(GPIO_NUM_0);
 
     vTaskDelay(pdMS_TO_TICKS(50));
 

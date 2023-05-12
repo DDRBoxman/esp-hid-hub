@@ -82,30 +82,22 @@ enum {
   0x3F ///< EEPROM address of i2c address to start up with (for devices that
        ///< support this feature)
 
-void seesaw_pin_mode(uint8_t addr, uint8_t pin, uint8_t mode);
+bool seesaw_pin_mode(uint8_t addr, uint8_t pin, uint8_t mode);
 
-void seesaw_pin_mode_bulk(uint8_t addr, uint32_t pins, uint8_t mode);
+bool seesaw_pin_mode_bulk(uint8_t addr, uint32_t pins, uint8_t mode);
 
-void seesaw_set_interrupts(uint8_t addr, uint32_t pins, bool enabled);
+bool seesaw_set_interrupts(uint8_t addr, uint32_t pins, bool enabled);
 
-//void seesaw_read_interrupts(addr, uint32_t pins);
+bool seesaw_digital_read_bulk(uint8_t addr, uint32_t pins, uint32_t *state);
 
-uint32_t seesaw_digital_read_bulk(uint8_t addr, uint32_t pins);
+bool seesaw_pixel_init(uint8_t addr, uint8_t pin, uint8_t num_pixels);
 
-void seesaw_pixel_init(uint8_t addr, uint8_t pin, uint8_t num_pixels);
+bool seesaw_pixel_write(uint8_t addr, uint8_t pixels[], uint8_t len);
 
-void seesaw_pixel_write(uint8_t addr, uint8_t pixels[], uint8_t len);
-
-void seesaw_pixel_write_offset(uint8_t addr, uint8_t pixels[], uint8_t len, uint8_t offset);
-
-uint32_t seesaw_get_version(uint8_t addr);
-
-uint8_t seesaw_get_hardware_type(uint8_t addr);
-
-uint8_t seesaw_get_address(uint8_t addr);
+bool seesaw_pixel_write_offset(uint8_t addr, uint8_t pixels[], uint8_t len, uint8_t offset);
 
 bool seesaw_enable_encoder_interrupt(uint8_t addr);
 
-int32_t seesaw_get_encoder_position(uint8_t addr);
+bool seesaw_get_encoder_position(uint8_t addr, int32_t *position);
 
-int32_t seesaw_get_encoder_diff(uint8_t addr);
+bool seesaw_get_encoder_diff(uint8_t addr, int32_t *diff);

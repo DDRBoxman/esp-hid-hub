@@ -16,19 +16,19 @@ void neokey_setup(uint8_t addr) {
   seesaw_set_interrupts(addr, NEOKEY_1X4_BUTTONMASK, 1);
 }
 
-void neokey_set_pixels() {
+bool neokey_read(uint8_t addr, uint32_t *buttons) {
+  uint32_t state = 0;
+  bool success = seesaw_digital_read_bulk(addr, NEOKEY_1X4_BUTTONMASK, &state);
 
-}
+  if (success == false) {
+    return false;
+  }
 
-void neokey_read_interrupts(uint8_t addr) {
-  //seesaw_read_interrupts(addr, )
-}
+  state ^= NEOKEY_1X4_BUTTONMASK;
+  state &= NEOKEY_1X4_BUTTONMASK;
+  state >>= NEOKEY_1X4_BUTTONA;
 
-uint32_t neokey_read(uint8_t addr) {
-  uint32_t buttons = seesaw_digital_read_bulk(addr, NEOKEY_1X4_BUTTONMASK);
-  buttons ^= NEOKEY_1X4_BUTTONMASK;
-  buttons &= NEOKEY_1X4_BUTTONMASK;
-  buttons >>= NEOKEY_1X4_BUTTONA;
+  (*buttons) = state;
 
-  return buttons;
+  return true;
 }

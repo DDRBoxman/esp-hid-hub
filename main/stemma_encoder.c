@@ -17,18 +17,18 @@ void stemma_encoder_setup(uint8_t addr) {
   //seesaw_enable_encoder_interrupt(addr);
 }
 
-int32_t stemma_encoder_get_position(uint8_t addr) {
-  return seesaw_get_encoder_position(addr);
+bool stemma_encoder_get_position(uint8_t addr, int32_t *position) {
+  return seesaw_get_encoder_position(addr, position);
 }
 
-int32_t stemma_encoder_get_diff(uint8_t addr) {
-  return seesaw_get_encoder_diff(addr);
+bool stemma_encoder_get_diff(uint8_t addr, int32_t *diff) {
+  return seesaw_get_encoder_diff(addr, diff);
 }
 
-uint32_t stemma_encoder_read_button(uint8_t addr) {
-  uint32_t buttons = seesaw_digital_read_bulk(addr, SS_BUTTONMASK);
-  buttons ^= SS_BUTTONMASK;
-  buttons &= SS_BUTTONMASK;
+bool stemma_encoder_read_button(uint8_t addr, uint32_t *buttons) {
+  bool success = seesaw_digital_read_bulk(addr, SS_BUTTONMASK, buttons);
+  (*buttons) ^= SS_BUTTONMASK;
+  (*buttons) &= SS_BUTTONMASK;
 
-  return buttons;
+  return success;
 }
