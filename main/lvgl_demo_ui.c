@@ -8,9 +8,14 @@
 
 #include "lvgl.h"
 
+#include "esp_timer.h"
+
+extern lv_font_t lato_60; 
+
 static lv_obj_t *meter;
 static lv_obj_t * btn;
 static lv_meter_indicator_t *indic;
+lv_obj_t * label1;
 //static lv_disp_rot_t rotation = LV_DISP_ROT_NONE;
 
 void set_value(int32_t v)
@@ -39,9 +44,39 @@ static void back_event_handler(lv_event_t * e)
     }
 }
 
+void my_timer(lv_timer_t * timer)
+{
+  
+    uint64_t time = esp_timer_get_time() / 1000000LL;
+
+    char buffer [100];
+
+    snprintf ( buffer, 100, "%lld", time );
+
+    lv_label_set_text(label1, buffer);
+}
+
+
 void example_lvgl_demo_ui(lv_disp_t *disp, lv_indev_t* indev)
 {
-    lv_group_t * group = lv_group_create();
+
+    lv_obj_t *scr = lv_disp_get_scr_act(disp);
+
+   label1 = lv_label_create(scr);
+    lv_label_set_text(label1, "12:34");
+    //lv_obj_set_width(label1, 150);  /*Set smaller width to make the lines wrap*/
+    //lv_obj_set_style_text_align(label1, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(label1, LV_ALIGN_CENTER, 0, 0);
+    //voidlv_obj_align_mid(label1, )
+
+    static lv_style_t style;
+    lv_style_init(&style);
+    lv_style_set_text_font(&style, &lato_60); // <--- you have to enable other font sizes in menuconfig
+    lv_obj_add_style(label1, &style, 0);
+
+    lv_timer_t * timer = lv_timer_create(my_timer, 500,  NULL);
+
+    /*lv_group_t * group = lv_group_create();
     //lv_group_add_obj(g, menu);
     lv_group_set_default(group);
     lv_indev_set_group(indev, group);
@@ -62,14 +97,14 @@ void example_lvgl_demo_ui(lv_disp_t *disp, lv_indev_t* indev)
     lv_obj_t * cont;
     lv_obj_t * label;
 
-    /*Create a sub page*/
+    // Create a sub page
     lv_obj_t * sub_page = lv_menu_page_create(menu, NULL);
 
     cont = lv_menu_cont_create(sub_page);
     label = lv_label_create(cont);
     lv_label_set_text(label, "Hello, I am hiding here");
 
-    /*Create a main page*/
+    //Create a main page
     lv_obj_t * main_page = lv_menu_page_create(menu, NULL);
 
     cont = lv_menu_cont_create(main_page);
@@ -97,5 +132,5 @@ void example_lvgl_demo_ui(lv_disp_t *disp, lv_indev_t* indev)
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 
-    lv_menu_set_page(menu, main_page);
+    lv_menu_set_page(menu, main_page);*/
 }

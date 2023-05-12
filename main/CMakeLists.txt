@@ -1,4 +1,4 @@
-idf_component_register(SRCS "stemma_encoder.c" "usb.c"
+idf_component_register(SRCS "lato_60.c" "stemma_encoder.c" "usb.c"
                     "neokey_4x1.c"
                     "main.c"
                     "lvgl_demo_ui.c"
@@ -7,4 +7,5 @@ idf_component_register(SRCS "stemma_encoder.c" "usb.c"
                     "neokey_4x1.c"
                     "usb.c"
                     "stemma_encoder.c"
+                    "lato_60.c"
                     INCLUDE_DIRS ".")
